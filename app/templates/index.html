@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV File Upload & Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+            text-align: center;
+        }
+        .upload-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .file-input-container {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+        .file-input-button {
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .file-input-button:hover {
+            border-color: #999;
+            background-color: #f0f0f0;
+        }
+        #file-input {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .file-name {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        .submit-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .submit-button:hover {
+            background-color: #45a049;
+        }
+        .submit-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #response-container {
+            margin-top: 30px;
+            display: none;
+        }
+        .response-content {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .loading {
+            text-align: center;
+            margin: 20px 0;
+            display: none;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .tab-container {
+            margin-top: 20px;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+        .tab.active {
+            background-color: white;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-top: none;
+            background-color: white;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            margin-top: 20px;
+        }
+        .ml-result-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f0f8ff;
+            border-radius: 5px;
+            border: 1px solid #b8daff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CSV File Upload & Analysis</h1>
+        <div class="upload-form">
+            <div class="file-input-container">
+                <div class="file-input-button">
+                    <p>Drag and drop your CSV file here or click to browse</p>
+                    <input type="file" id="file-input" accept=".csv" />
+                </div>
+                <div class="file-name" id="file-name">No file selected</div>
+            </div>
+            <button class="submit-button" id="submit-button" disabled>Upload CSV</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing your CSV file...</p>
+        </div>
+        
+        <div id="response-container">
+            <h2>CSV Analysis</h2>
+            
+            <div class="tab-container">
+                <div class="tabs">
+                    <div class="tab active" data-tab="preview">Preview</div>
+                    <div class="tab" data-tab="stats">Statistics</div>
+                    <div class="tab" data-tab="ml-results">ML Analysis</div>
+                </div>
+                
+                <div class="tab-content active" id="preview-tab">
+                    <div class="response-content" id="preview-content"></div>
+                </div>
+                
+                <div class="tab-content" id="stats-tab">
+                    <div class="response-content" id="stats-content"></div>
+                </div>
+                
+                <div class="tab-content" id="ml-results-tab">
+                    <div class="response-content" id="ml-content">
+                        <div id="no-ml-data" style="display: none;">
+                            <p>Not enough numeric data for machine learning analysis.</p>
+                        </div>
+                        <div id="ml-data-container">
+                            <div id="pca-container" class="ml-result-section" style="display: none;">
+                                <h3>PCA Analysis</h3>
+                                <p>Principal Component Analysis reduces your data to key dimensions.</p>
+                                <div class="chart-container">
+                                    <canvas id="pca-chart"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div id="clustering-container" class="ml-result-section" style="display: none;">
+                                <h3>K-Means Clustering</h3>
+                                <p>K-Means clustering groups similar data points together.</p>
+                                <div id="cluster-info"></div>
+                                <div class="chart-container">
+                                    <canvas id="cluster-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('file-input');
+            const fileName = document.getElementById('file-name');
+            const submitButton = document.getElementById('submit-button');
+            const loading = document.getElementById('loading');
+            const responseContainer = document.getElementById('response-container');
+            const previewContent = document.getElementById('preview-content');
+            const statsContent = document.getElementById('stats-content');
+            
+            // Tab functionality
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    const tabContents = document.querySelectorAll('.tab-content');
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    const tabId = `${tab.dataset.tab}-tab`;
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+            
+            fileInput.addEventListener('change', function() {
+                if (fileInput.files.length > 0) {
+                    fileName.textContent = fileInput.files[0].name;
+                    submitButton.disabled = false;
+                } else {
+                    fileName.textContent = 'No file selected';
+                    submitButton.disabled = true;
+                }
+            });
+            
+            submitButton.addEventListener('click', function() {
+                if (fileInput.files.length === 0) {
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                
+                if (!file.name.endsWith('.csv')) {
+                    alert('Please select a CSV file');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                loading.style.display = 'block';
+                submitButton.disabled = true;
+                responseContainer.style.display = 'none';
+                
+                fetch('/upload/', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error uploading file');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    displayResponse(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    previewContent.innerHTML = `<p>Error: ${error.message}</p>`;
+                    responseContainer.style.display = 'block';
+                })
+                .finally(() => {
+                    loading.style.display = 'none';
+                    submitButton.disabled = false;
+                });
+            });
+            
+            function displayResponse(data) {
+                // Display preview in the first tab
+                let previewHtml = `
+                    <p><strong>Filename:</strong> ${data.filename}</p>
+                    <p><strong>Rows:</strong> ${data.rows}</p>
+                    <p><strong>Columns:</strong> ${data.columns.join(', ')}</p>
+                    <h3>Preview:</h3>
+                `;
+                
+                if (data.preview && data.preview.length > 0) {
+                    previewHtml += '<table><thead><tr>';
+                    
+                    // Table headers
+                    for (const col of data.columns) {
+                        previewHtml += `<th>${col}</th>`;
+                    }
+                    previewHtml += '</tr></thead><tbody>';
+                    
+                    // Table rows
+                    for (const row of data.preview) {
+                        previewHtml += '<tr>';
+                        for (const col of data.columns) {
+                            previewHtml += `<td>${row[col] !== null && row[col] !== undefined ? row[col] : ''}</td>`;
+                        }
+                        previewHtml += '</tr>';
+                    }
+                    
+                    previewHtml += '</tbody></table>';
+                } else {
+                    previewHtml += '<p>No preview data available</p>';
+                }
+                
+                previewContent.innerHTML = previewHtml;
+                
+                // Display statistics in the second tab
+                let statsHtml = '';
+                
+                if (data.stats && data.stats.numeric_columns) {
+                    statsHtml += `<h3>Numeric Columns</h3>
+                                <p>${data.stats.numeric_columns.join(', ')}</p>`;
+                    
+                    if (data.stats.descriptive_stats) {
+                        statsHtml += '<h3>Descriptive Statistics</h3>';
+                        
+                        for (const col in data.stats.descriptive_stats) {
+                            statsHtml += `<h4>${col}</h4>`;
+                            statsHtml += '<table><tbody>';
+                            
+                            for (const stat in data.stats.descriptive_stats[col]) {
+                                const value = data.stats.descriptive_stats[col][stat];
+                                statsHtml += `<tr>
+                                    <th>${stat}</th>
+                                    <td>${typeof value === 'number' ? value.toFixed(4) : value}</td>
+                                </tr>`;
+                            }
+                            
+                            statsHtml += '</tbody></table>';
+                        }
+                    }
+                } else {
+                    statsHtml = '<p>No numeric data available for statistics.</p>';
+                }
+                
+                statsContent.innerHTML = statsHtml;
+                
+                // Handle ML results
+                handleMLResults(data);
+                
+                responseContainer.style.display = 'block';
+            }
+            
+            function handleMLResults(data) {
+                const noMlData = document.getElementById('no-ml-data');
+                const mlDataContainer = document.getElementById('ml-data-container');
+                const pcaContainer = document.getElementById('pca-container');
+                const clusteringContainer = document.getElementById('clustering-container');
+                
+                // Reset containers
+                noMlData.style.display = 'none';
+                pcaContainer.style.display = 'none';
+                clusteringContainer.style.display = 'none';
+                
+                if (!data.stats || !data.stats.numeric_columns || data.stats.numeric_columns.length < 2) {
+                    noMlData.style.display = 'block';
+                    mlDataContainer.style.display = 'none';
+                    return;
+                }
+                
+                mlDataContainer.style.display = 'block';
+                
+                // PCA visualization if available
+                if (data.stats.pca) {
+                    pcaContainer.style.display = 'block';
+                    
+                    const pcaCtx = document.getElementById('pca-chart').getContext('2d');
+                    const pcaData = data.stats.pca.reduced_data;
+                    
+                    // Destroy previous chart if it exists
+                    if (window.pcaChart) {
+                        window.pcaChart.destroy();
+                    }
+                    
+                    window.pcaChart = new Chart(pcaCtx, {
+                        type: 'scatter',
+                        data: {
+                            datasets: [{
+                                label: 'PCA Reduced Data',
+                                data: pcaData.map(point => ({x: point[0], y: point[1]})),
+                                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 1,
+                                pointRadius: 5
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'Principal Component 1'
+                                    }
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: 'Principal Component 2'
+                                    }
+                                }
+                            },
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'PCA Visualization'
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `Point ${context.dataIndex + 1}: (${context.parsed.x.toFixed(2)}, ${context.parsed.y.toFixed(2)})`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                // Clustering visualization if available
+                if (data.stats.clustering) {
+                    clusteringContainer.style.display = 'block';
+                    
+                    const clusterInfo = document.getElementById('cluster-info');
+                    clusterInfo.innerHTML = `
+                        <p>Number of clusters: ${data.stats.clustering.n_clusters}</p>
+                        <p>Points per cluster: ${data.stats.clustering.cluster_counts.map((count, idx) => `Cluster ${idx+1}: ${count} points`).join(', ')}</p>
+                    `;
+                    
+                    // If we have PCA data, we can visualize clusters
+                    if (data.stats.pca) {
+                        const clusterCtx = document.getElementById('cluster-chart').getContext('2d');
+                        
+                        // Create cluster datasets based on first 10 points
+                        // Note: This is a simplified visualization since we only have the reduced data
+                        // but not the cluster assignments for each point
+                        
+                        // Destroy previous chart if it exists
+                        if (window.clusterChart) {
+                            window.clusterChart.destroy();
+                        }
+                        
+                        const clusterCenters = data.stats.clustering.cluster_centers;
+                        const colors = ['rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)'];
+                        const borderColors = ['rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)'];
+                        
+                        // Create datasets for cluster centers
+                        const datasets = [];
+                        
+                        for (let i = 0; i < clusterCenters.length; i++) {
+                            datasets.push({
+                                label: `Cluster ${i+1} Center`,
+                                data: [{x: clusterCenters[i][0], y: clusterCenters[i][1]}],
+                                backgroundColor: colors[i % colors.length],
+                                borderColor: borderColors[i % borderColors.length],
+                                borderWidth: 2,
+                                pointRadius: 8,
+                                pointStyle: 'rectRot'
+                            });
+                        }
+                        
+                        window.clusterChart = new Chart(clusterCtx, {
+                            type: 'scatter',
+                            data: {
+                                datasets: datasets
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'Feature Space Dimension 1'
+                                        }
+                                    },
+                                    y: {
+                                        title: {
+                                            display: true,
+                                            text: 'Feature Space Dimension 2'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: 'K-Means Clustering Centers'
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                const clusterIdx = context.datasetIndex;
+                                                return `Cluster ${clusterIdx + 1} Center: (${context.parsed.x.toFixed(2)}, ${context.parsed.y.toFixed(2)})`;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        document.getElementById('cluster-chart').parentNode.innerHTML = 
+                            '<p>Clustering visualization requires PCA data with at least 2 components.</p>';
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html> 
